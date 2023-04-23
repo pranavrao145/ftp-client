@@ -97,8 +97,40 @@ impl FtpStream {
         conn.read_line(&mut line).await?;
 
         let status_code: String = line.chars().take(3).collect();
-        let status_code = status_code.parse::<i32>()?;
+        let status_code: i32 = status_code.parse()?;
 
         Ok(status_code)
+    }
+
+    /// Returns an int with the status code of the next message as well as the content of the next message.
+    ///
+    /// * `conn`: a mutable reference to the BufReader containing the TCPStream to read from
+    pub async fn get_next_message(&self, conn: &mut BufReader<TcpStream>) -> Result<(i32, String), Box<dyn Error>> {
+        let mut first_line = String::new();
+        let mut rest = String::new();
+        
+        // read first line
+        conn.read_line(&mut first_line).await?;
+
+        let status_code: String = first_line.chars().take(3).collect();
+
+        loop {
+            let mut next_line = String::new();
+            conn.read_line(&mut next_line).await?;
+
+            rest.push_str("\n");
+            rest.push_str(&next_line);
+
+            let status_code_with_space = format!("{} ", status_code);
+
+            if next_line.starts_with(&status_code_with_space) {
+                break;
+            }
+        }
+
+        let final_msg = format!("{}{}", first_line, rest);
+        let status_code: i32 = status_code.parse()?;
+
+        Ok((status_code, final_msg))
     }
 }
